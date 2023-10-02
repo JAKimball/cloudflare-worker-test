@@ -6,15 +6,15 @@ import App from './app.js';
 
 const cli = meow(
 	`
-	Usage
-	  $ cloudflare-worker-test
+  Usage
+    $ cloudflare-worker-test
 
-	Options
-		--name  Your name
+  Options
+    --name  Your name
 
-	Examples
-	  $ cloudflare-worker-test --name=Jane
-	  Hello, Jane
+  Examples
+    $ cloudflare-worker-test --name=Jane
+    Hello, Jane
 `,
 	{
 		importMeta: import.meta,
