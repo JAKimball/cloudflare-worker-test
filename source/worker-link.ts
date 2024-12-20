@@ -11,18 +11,27 @@ export function fetchWorkerData() {
 		mode: 'same-origin',
 	};
 
+	let timeout: NodeJS.Timeout;
 	let promise = Promise.race([
 		fetch(
 			'https://misty-violet-6168.42files.workers.dev/counter',
 			requestOptions,
 		).then(response => response.text()),
-		new Promise((_resolve, reject) =>
-			setTimeout(() => reject(new Error('Timeout')), 5000),
+		new Promise(
+			(_resolve, reject) =>
+				(timeout = setTimeout(() => reject(new Error('Timeout')), 5000)),
 		),
 	]);
 
-	promise.then(result => console.log(result)),
-		promise.catch(error => console.log(error));
+	promise
+		.then(result => {
+			clearTimeout(timeout);
+			console.log(result);
+		})
+		.catch(error => {
+			clearTimeout(timeout);
+			console.log(error);
+		});
 }
 
 let callCount = 0;
@@ -31,13 +40,12 @@ let options: https.RequestOptions = {
 	hostname: 'misty-violet-6168.42files.workers.dev',
 	path: '/counter',
 	headers: {},
-	agent: new https.Agent({ keepAlive: true, keepAliveMsecs: 20000 }),
+	agent: new https.Agent({keepAlive: true, keepAliveMsecs: 20000}),
 };
 
 export function testWorker() {
-	const timeLabel = `Request ${++callCount}`;
+	const timeLabel = `Request ${callCount}`;
 	console.time(timeLabel);
-	console.log(`Called console.time with label: ${timeLabel}`);
 
 	let req = https.request(options, res => {
 		let chunks: Uint8Array[] = [];
@@ -69,9 +77,15 @@ interface RunFunction {
 }
 
 function runNTimes(f: RunFunction, n: number = 1): void {
+	console.log(
+		`Running ${f.name} ${n} times (${callCount + 1}-${callCount + n})`,
+	);
 	let label = 'Run Time';
 	console.time(label);
-	for (let i = 0; i < n; i++) f();
+	for (let i = 0; i < n; i++) {
+		callCount++;
+		f();
+	}
 	console.timeEnd(label);
 }
 
@@ -79,8 +93,15 @@ export function runWorkerTestNTimes(n: number = 1) {
 	runNTimes(testWorker, n);
 }
 
+export function runFetchWorkerDataNTimes(n: number = 1) {
+	runNTimes(fetchWorkerData, n);
+}
+
 export function bigTest() {
 	runNTimes(testWorker, 100);
-}	
+}
 
-runWorkerTestNTimes(50)
+// setTimeout(() => {
+// 	runWorkerTestNTimes(50);
+// 	// runFetchWorkerDataNTimes(5);
+// }, 30);
