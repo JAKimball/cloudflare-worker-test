@@ -1,5 +1,28 @@
 import * as https from 'https';
 
+type WorkerMetaData = {
+	perInstanceCounter: number;
+	processCallCount: number;
+	localPorts: number[];
+};
+
+type WorkerInstanceName = string;
+
+const dataCenterMap = new Map<WorkerInstanceName, WorkerMetaData>();
+
+export function getDataCenterMap() {
+	return dataCenterMap;
+}
+
+export function getWorkerInstanceCount() {
+	return dataCenterMap.size;
+}
+
+type WorkerResponse = {
+	instanceName: WorkerInstanceName;
+	perInstanceCounter: number;
+};
+
 export function fetchWorkerData() {
 	let myHeaders = new Headers();
 	myHeaders.append('Connection', 'close');
@@ -35,12 +58,21 @@ export function fetchWorkerData() {
 }
 
 let callCount = 0;
+
+const agent = new https.Agent({
+	keepAlive: true,
+	keepAliveMsecs: 20000,
+	maxSockets: 256,
+	timeout: 5000,
+});
+
 let options: https.RequestOptions = {
 	method: 'GET',
 	hostname: 'misty-violet-6168.42files.workers.dev',
 	path: '/counter',
 	headers: {},
-	agent: new https.Agent({keepAlive: true, keepAliveMsecs: 20000}),
+	agent: agent,
+	timeout: 5000,
 };
 
 export function testWorker() {
@@ -56,17 +88,47 @@ export function testWorker() {
 
 		res.on('end', (_chunk: Buffer) => {
 			let body = Buffer.concat(chunks);
+			const localPort = (req.socket?.address() as import('net').AddressInfo)
+				?.port;
 			console.log(
-				`${timeLabel}: (Local Port# ${
-					(req.socket?.address() as import('net').AddressInfo)?.port
-				}): ${body.toString()}`,
+				`${timeLabel}: (Local Port# ${localPort}): ${body.toString()}`,
 			);
 			console.timeEnd(timeLabel);
+
+			// Parse the data
+			let workerResponse: WorkerResponse = JSON.parse(body.toString());
+			let instanceName = workerResponse.instanceName;
+			let metaData = dataCenterMap.get(instanceName);
+			if (metaData === undefined) {
+				metaData = {
+					perInstanceCounter: workerResponse.perInstanceCounter,
+					processCallCount: 1,
+					localPorts: [localPort as number],
+				};
+				dataCenterMap.set(instanceName, metaData);
+			} else {
+				metaData.perInstanceCounter = workerResponse.perInstanceCounter;
+				metaData.processCallCount++;
+				metaData.localPorts.push(localPort as number);
+			}
 		});
 
 		res.on('error', error => {
-			console.error(error);
+			console.error(`${timeLabel} response error:`, error);
+			console.timeEnd(timeLabel);
 		});
+	});
+
+	req.setTimeout(5000);
+	req.on('timeout', () => {
+		console.error(`${timeLabel} timeout`);
+		req.destroy();
+		console.timeEnd(timeLabel);
+	});
+
+	req.on('error', error => {
+		console.error(`${timeLabel} error:`, error);
+		console.timeEnd(timeLabel);
 	});
 
 	req.end();
@@ -84,7 +146,11 @@ function runNTimes(f: RunFunction, n: number = 1): void {
 	console.time(label);
 	for (let i = 0; i < n; i++) {
 		callCount++;
-		f();
+		try {
+			f();
+		} catch (error) {
+			console.error(`Error during execution of ${f.name}:`, error);
+		}
 	}
 	console.timeEnd(label);
 }
@@ -105,3 +171,4 @@ export function bigTest() {
 // 	runWorkerTestNTimes(50);
 // 	// runFetchWorkerDataNTimes(5);
 // }, 30);
+//
