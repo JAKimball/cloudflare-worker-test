@@ -1,6 +1,6 @@
 import * as https from 'https';
 
-function fetchWorkerData() {
+export function fetchWorkerData() {
 	let myHeaders = new Headers();
 	myHeaders.append('Connection', 'close');
 
@@ -34,9 +34,10 @@ let options: https.RequestOptions = {
 	agent: new https.Agent({ keepAlive: true, keepAliveMsecs: 20000 }),
 };
 
-function testWorker() {
-	let timeLabel = `Request ${++callCount}`;
+export function testWorker() {
+	const timeLabel = `Request ${++callCount}`;
 	console.time(timeLabel);
+	console.log(`Called console.time with label: ${timeLabel}`);
 
 	let req = https.request(options, res => {
 		let chunks: Uint8Array[] = [];
@@ -48,7 +49,7 @@ function testWorker() {
 		res.on('end', (_chunk: Buffer) => {
 			let body = Buffer.concat(chunks);
 			console.log(
-				`${timeLabel} (Local Port# ${
+				`${timeLabel}: (Local Port# ${
 					(req.socket?.address() as import('net').AddressInfo)?.port
 				}): ${body.toString()}`,
 			);
@@ -74,6 +75,12 @@ function runNTimes(f: RunFunction, n: number = 1): void {
 	console.timeEnd(label);
 }
 
-function bigTest() {
+export function runWorkerTestNTimes(n: number = 1) {
+	runNTimes(testWorker, n);
+}
+
+export function bigTest() {
 	runNTimes(testWorker, 100);
 }	
+
+runWorkerTestNTimes(50)
