@@ -1,8 +1,10 @@
+import * as https from 'https';
+
 function fetchWorkerData() {
 	let myHeaders = new Headers();
 	myHeaders.append('Connection', 'close');
 
-	let requestOptions = {
+	let requestOptions: RequestInit = {
 		method: 'GET',
 		headers: myHeaders,
 		redirect: 'follow',
@@ -14,7 +16,7 @@ function fetchWorkerData() {
 			'https://misty-violet-6168.42files.workers.dev/counter',
 			requestOptions,
 		).then(response => response.text()),
-		new Promise((resolve, reject) =>
+		new Promise((_resolve, reject) =>
 			setTimeout(() => reject(new Error('Timeout')), 5000),
 		),
 	]);
@@ -24,33 +26,30 @@ function fetchWorkerData() {
 }
 
 let callCount = 0;
-let options = {
+let options: https.RequestOptions = {
 	method: 'GET',
 	hostname: 'misty-violet-6168.42files.workers.dev',
 	path: '/counter',
 	headers: {},
-	maxRedirects: 20,
+	agent: new https.Agent({ keepAlive: true, keepAliveMsecs: 20000 }),
 };
 
-https.globalAgent.keepAlive = true;
-https.globalAgent.keepAliveMsecs = 20000;
-
-export function testWorker() {
+function testWorker() {
 	let timeLabel = `Request ${++callCount}`;
 	console.time(timeLabel);
 
 	let req = https.request(options, res => {
-		let chunks = [];
+		let chunks: Uint8Array[] = [];
 
 		res.on('data', chunk => {
 			chunks.push(chunk);
 		});
 
-		res.on('end', chunk => {
+		res.on('end', (_chunk: Buffer) => {
 			let body = Buffer.concat(chunks);
 			console.log(
 				`${timeLabel} (Local Port# ${
-					req.socket.address().port
+					(req.socket?.address() as import('net').AddressInfo)?.port
 				}): ${body.toString()}`,
 			);
 			console.timeEnd(timeLabel);
@@ -64,9 +63,17 @@ export function testWorker() {
 	req.end();
 }
 
-export function runNTimes(f, n) {
+interface RunFunction {
+	(): void;
+}
+
+function runNTimes(f: RunFunction, n: number = 1): void {
 	let label = 'Run Time';
 	console.time(label);
 	for (let i = 0; i < n; i++) f();
 	console.timeEnd(label);
 }
+
+function bigTest() {
+	runNTimes(testWorker, 100);
+}	
